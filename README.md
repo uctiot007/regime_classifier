@@ -29,14 +29,13 @@ K-Means separated the data into three regimes with no time or label information 
 
 **The key validation:** the 32 days assigned to the high-volatility cluster fall *entirely* within March 9 – April 22, 2020 — the COVID market crash — with zero false positives anywhere else in a 10-year span. The model was never given dates; it found this purely from the shape of volatility and returns.
 
-![Price colored by regime](outputs/regime_scatter.png)
-![Price with regime shading](outputs/regime_bands.png)
+
 
 ## Choosing k: An Honest Look at the Elbow Method
 
 The textbook approach is to pick k where the inertia (WCSS) curve "elbows." In practice, this curve rarely bends as cleanly as tutorials suggest, and this project is no exception:
 
-![Elbow curve](outputs/elbow.png)
+
 
 | k | Inertia |
 |---|---|
