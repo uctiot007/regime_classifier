@@ -1,3 +1,6 @@
+import os
+os.makedirs("outputs", exist_ok=True)
+
 from data_loader import fetch_data
 from features import engineer_features
 from scaler import StandardScaler
@@ -21,12 +24,12 @@ print(df.groupby("regime")[["vol_5d", "vol_21d", "ma_return_10d"]].mean())
 
 from visualizer import plot_price_by_regime, plot_regime_background
 
-plot_price_by_regime(df, save_path="regime_scatter.png")
-plot_regime_background(df, save_path="regime_bands.png")
+plot_price_by_regime(df, save_path="outputs/regime_scatter.png")
+plot_regime_background(df, save_path="outputs/regime_bands.png")
 
 from analysis import elbow_analysis, cluster_profile
 
-elbow_analysis(X_scaled, save_path="elbow.png")
+elbow_analysis(X_scaled, save_path="outputs/elbow.png")
 cluster_profile(df)
 
 from walk_forward import walk_forward_regimes, cluster_persistence, centroid_drift, plot_centroid_drift, detection_lag
@@ -34,12 +37,14 @@ from walk_forward import walk_forward_regimes, cluster_persistence, centroid_dri
 # Expanding 
 wf_labels_exp, hist_exp = walk_forward_regimes(X, min_train_size=252, refit_every=5, k=3, window_mode="expanding")
 drift_exp = centroid_drift(hist_exp)
-plot_centroid_drift(hist_exp, drift_exp, df.index, title="Centroid Drift — Expanding Window")
+plot_centroid_drift(hist_exp, drift_exp, df.index, title="Centroid Drift — Expanding Window",
+                     save_path="outputs/centroid_drift_expanding.png")
 
 # Rolling 
 wf_labels_roll, hist_roll = walk_forward_regimes(X, min_train_size=252, refit_every=5, k=3, window_mode="rolling", lookback=252)
 drift_roll = centroid_drift(hist_roll)
-plot_centroid_drift(hist_roll, drift_roll, df.index, title="Centroid Drift — Rolling Window (1yr lookback)")
+plot_centroid_drift(hist_roll, drift_roll, df.index, title="Centroid Drift — Rolling Window (1yr lookback)",
+                     save_path="outputs/centroid_drift_rolling.png")
 
 # Detection lag — how many trading days after the real crash started did the model catch it?
 crash_dates = df[df["regime"] == 2].index.tolist()  # from your original in-sample model
