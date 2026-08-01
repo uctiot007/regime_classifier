@@ -29,13 +29,14 @@ K-Means separated the data into three regimes with no time or label information 
 
 **The key validation:** the 32 days assigned to the high-volatility cluster fall *entirely* within March 9 – April 22, 2020 — the COVID market crash — with zero false positives anywhere else in a 10-year span. The model was never given dates; it found this purely from the shape of volatility and returns.
 
-
+![Price colored by regime](outputs/regime_scatter.png)
+![Price with regime shading](outputs/regime_bands.png)
 
 ## Choosing k: An Honest Look at the Elbow Method
 
 The textbook approach is to pick k where the inertia (WCSS) curve "elbows." In practice, this curve rarely bends as cleanly as tutorials suggest, and this project is no exception:
 
-
+![Elbow curve](outputs/elbow.png)
 
 | k | Inertia |
 |---|---|
@@ -64,6 +65,32 @@ There is no single sharp bend — the curve decays smoothly, with diminishing (b
 ## Why Scaling Matters Here
 
 K-Means measures similarity via raw Euclidean distance. Without scaling, features with larger numeric ranges dominate the distance calculation regardless of whether they're actually more informative. Since `vol_5d`, `vol_21d`, and `ma_return_10d` all live on different natural scales, standardizing them first is not optional — it's what lets each feature contribute proportionally to cluster assignment.
+
+## Walk-Forward Validation: Is This Actually Usable Live?
+
+The results above (in-sample K-Means, elbow method) are fit on the entire 10-year dataset at once — which means the model gets to see the crash before "detecting" it. That's fine for exploratory analysis, but it doesn't answer the question a real trading system actually needs answered: **if this had been running live, would it have caught the regime change in time to matter, and would its regime definitions have stayed stable over years of operation?**
+
+To test this, `walk_forward.py` implements point-in-time classification: the scaler and K-Means model are refit periodically (every 5 trading days) using only data available up to that point, and each day is classified using the most recently fit model — never one that has seen that day's data.
+
+**Two windowing strategies were compared:**
+
+| | Expanding window (uses all history) | Rolling window (252-day lookback) |
+|---|---|---|
+| Detection lag vs. real Feb 19, 2020 market top | **3 trading days** | 13 trading days |
+| Centroid stability post-crash | Unstable — recurring drift spikes of 0.04+ persist through 2024 | Stable — drift returns to pre-crash baseline (~0.005) by 2022 |
+
+**Detection lag** (`detection_lag()` in `walk_forward.py`) measures how many trading days after the actual market top the walk-forward model first sustainably (3+ consecutive days) flagged a different regime.
+
+**Centroid drift** (`centroid_drift()`, `plot_centroid_drift()`) measures how far each regime's centroid moves between refits, in original feature units, matched nearest-neighbor since KMeans cluster indices aren't stable across refits.
+
+**Cluster persistence** (`cluster_persistence()`) measures switch rate and run-length of regime labels day to day — with the important caveat that observed run lengths are partially confounded with the refit cadence itself (run lengths cluster near multiples of `refit_every`), so only the *median* run length (~5 trading days, stable across two different refit cadences tested) should be trusted as a real signal; the raw run-length distribution should not be over-interpreted.
+
+**The honest conclusion — a real trade-off, not a clean winner:**
+- The **expanding window** detects new regimes faster (3 days), because it retains rich historical precedent (2015 China deval, Dec 2018 selloff) to match new anomalous days against. But it never forgets — a single rare event like COVID permanently destabilizes that cluster's centroid for years afterward, since the training set only grows and rarely accumulates enough *additional* similar days to re-anchor it.
+- The **rolling window** eventually stabilizes (drift returns to baseline once COVID data ages out of the 252-day lookback), but is meaningfully slower to detect new regimes when the recent lookback window happens to be unusually calm and lacks precedent for what's about to happen.
+- Rolling windows introduce their own instability mode: a second drift spike occurs roughly one year after the crash, when the most extreme COVID days age *out* of the lookback window — a moment as disruptive to centroid stability as the original crash's entry.
+
+There is no free lunch here: this is an inherent speed-vs-stability trade-off in the window design, not a bug. A natural next experiment would be a longer rolling lookback (3-5 years) to test whether it captures more precedent while still eventually forgetting extreme outliers.
 
 ## Caveats & Limitations
 
